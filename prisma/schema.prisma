@@ -1,0 +1,172 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ─── User Configuration ───
+model User {
+  id               String              @id @default(cuid())
+  email            String?             @unique
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  immichUrl        String?
+  immichApiKey     String?
+  immichConnected  Boolean             @default(false)
+  anthropicApiKey  String?
+  openaiApiKey     String?
+  primaryModel     String              @default("claude-vision")
+  scoringWeights   ScoringPreferences?
+  analyses         Analysis[]
+  photos           Photo[]
+  captions         Caption[]
+  immichSyncs      ImmichSync[]
+}
+
+model ScoringPreferences {
+  id                  String              @id @default(cuid())
+  userId              String              @unique
+  user                User                @relation(fields: [userId], references: [id])
+  aestheticWeight     Float               @default(0.3)
+  emotionWeight       Float               @default(0.3)
+  socialWeight        Float               @default(0.4)
+  compositionWeight   Float               @default(0.3)
+  preferredCategories PreferredCategory[] // normalized instead of String[]
+  minScoreThreshold   Float               @default(5.0)
+}
+
+// ─── Photo Management ───
+model Photo {
+  id                String     @id @default(cuid())
+  userId            String
+  user              User       @relation(fields: [userId], references: [id])
+  fileName          String
+  fileSize          Int
+  mimeType          String
+  fileUrl           String
+  thumbnailUrl      String?
+  dateTaken         DateTime?
+  cameraModel       String?
+  location          String?
+  gpsLatitude       Float?
+  gpsLongitude      Float?
+  altitude          Float?
+  overallScore      Float?
+  aestheticScore    Float?
+  emotionScore      Float?
+  socialScore       Float?
+  compositionScore  Float?
+  category          String?
+  tags              PhotoTag[]          // normalized instead of String[]
+  captions          Caption[]
+  analyses          Analysis[]          // ← added opposite relation
+  source            String     @default("manual")
+  immichAssetId     String?
+  immichAlbumId     String?
+  analyzed          Boolean    @default(false)
+  analyzedAt        DateTime?
+  inBatch           Boolean    @default(false)
+  selected          Boolean    @default(false)
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([category])
+  @@index([overallScore])
+}
+
+// ─── AI Analysis Results ───
+model Analysis {
+  id              String   @id @default(cuid())
+  photoId         String   @unique
+  photo           Photo    @relation(fields: [photoId], references: [id], onDelete: Cascade)
+  userId          String   // ← added to relate to User
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  aiResponse      String
+  modelUsed       String
+  promptUsed      String
+  composition     String
+  emotion         String
+  aesthetic       String
+  social          String
+  processingTime  Float
+  tokenUsage      Int?
+  cost            Float?
+  fallbackFrom    String?
+  retryCount      Int      @default(0)
+  createdAt       DateTime @default(now())
+}
+
+// ─── Caption Generation ───
+model Caption {
+  id               String   @id @default(cuid())
+  photoId          String
+  photo            Photo    @relation(fields: [photoId], references: [id], onDelete: Cascade)
+  userId           String   // ← added to relate to User
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  style            String
+  caption          String
+  hashtags         String   @default("[]")
+  emojis           String   @default("[]")
+  charCount        Int
+  isOptimal        Boolean  @default(false)
+  suggestionOrder  Int      @default(0)
+  createdAt        DateTime @default(now())
+
+  @@index([photoId, style])
+}
+
+// ─── Immich Integration ───
+model ImmichSync {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  serverUrl     String
+  apiKey        String?
+  status        String    @default("idle")
+  albumsCount   Int       @default(0)
+  photosCount   Int       @default(0)
+  lastSyncedAt  DateTime?
+  error         String?
+  dateFrom      DateTime?
+  dateTo        DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+// ─── Upload Sessions ───
+model UploadSession {
+  id              String   @id @default(cuid())
+  userId          String
+  totalFiles      Int
+  uploadedFiles   Int      @default(0)
+  completedFiles  Int      @default(0)
+  failedFiles     Int      @default(0)
+  status          String   @default("uploading")
+  createdAt       DateTime @default(now())
+  completedAt     DateTime?
+}
+
+// ─── Normalized list fields ───
+model PhotoTag {
+  id        String @id @default(cuid())
+  photoId   String
+  photo     Photo  @relation(fields: [photoId], references: [id], onDelete: Cascade)
+  name      String
+
+  @@unique([photoId, name])
+  @@index([photoId])
+}
+
+model PreferredCategory {
+  id        String @id @default(cuid())
+  prefId    String
+  pref      ScoringPreferences @relation(fields: [prefId], references: [id], onDelete: Cascade)
+  name      String
+
+  @@unique([prefId, name])
+  @@index([prefId])
+}
