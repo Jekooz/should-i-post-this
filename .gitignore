@@ -1,1 +1,16 @@
 node_modules
+.next
+.env
+.env.local
+.env.*.local
+*.tsbuildinfo
+next-env.d.ts
+temp
+dummy.jpg
+.gitkeep
+prisma/*.db
+prisma/*.db-journal
+dist
+out
+.vercel
+netlify
