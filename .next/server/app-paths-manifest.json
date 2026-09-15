@@ -1,4 +1,0 @@
-{
-  "/api/immich/albums/route": "app/api/immich/albums/route.js",
-  "/api/immich/route": "app/api/immich/route.js"
-}
