@@ -3,9 +3,9 @@ import { prisma } from '@/lib/db';
 import { getOrCreateDefaultUser } from '@/lib/db';
 import { handleAPIError } from '@/lib/api-client';
 
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const assetId = params.id;
+    const { id: assetId } = await params;
     const user = await getOrCreateDefaultUser();
 
     if (!user.immichConnected || !user.immichUrl) {
