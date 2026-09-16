@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
             fileName: `immich_${assetId}.jpg`,
             fileSize: 1024 * 1024,
             mimeType: 'image/jpeg',
-            fileUrl: `https://via.placeholder.com/300?text=${assetId}`,
+            fileUrl: `${user.immichUrl}/api/asset/thumbnail/${assetId}`,
             source: 'immich',
             immichAssetId: assetId,
             immichAlbumId: albumId,

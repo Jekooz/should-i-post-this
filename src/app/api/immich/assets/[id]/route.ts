@@ -22,7 +22,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     // return response;
 
     // Mocking the proxy for now
-    return NextResponse.redirect(`https://via.placeholder.com/600?text=Asset+${assetId}`);
+    // Proxy Immich asset image directly
+return NextResponse.redirect(`${user.immichUrl}/api/assets/${assetId}`);
   } catch (error) {
     return handleAPIError(error);
   }
