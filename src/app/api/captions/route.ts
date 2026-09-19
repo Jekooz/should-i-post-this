@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { prisma } from '@/lib/db';
 import { getOrCreateDefaultUser } from '@/lib/db';
-import { generateCaptionWithClaude } from '@/lib/ai-claude';
-import { generateCaptionWithOpenAI } from '@/lib/ai-openai';
+import { generateCaptionWithClaude, isClaudeAvailable } from '@/lib/ai-claude';
+import { generateCaptionWithOpenAI, isOpenAIAVAILABLE } from '@/lib/ai-openai';
 import { handleAPIError, createSuccessResponse } from '@/lib/api-client';
+import { readFile } from 'fs/promises';
+import { join } from 'path';
 
 export async function POST(request: NextRequest) {
   try {
@@ -38,30 +40,65 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate caption using available AI service
+    // Generate caption using available AI service and actual image bytes
+    // Forlocal files, read from disk; for immich, fetch via proxy
+    let imageBase64: string | null = null;
+    const mimeType = (photo.mimeType || 'image/jpeg') as 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif';
+
+    if (photo.fileUrl?.startsWith('/uploads/') || photo.fileUrl?.startsWith('/temp/')) {
+      try {
+        const filePath = join(process.cwd(), photo.fileUrl.replace(/^\//, ''));
+        const buf = await readFile(filePath);
+        imageBase64 = buf.toString('base64');
+      } catch (e) {
+        console.warn('Caption: could not read local image, falling back to stub:', e);
+      }
+    } else if (photo.source === 'immich' && photo.immichAssetId) {
+      // Fetch immich asset bytes via the internal proxy-like fetch
+      const userCfg = { url: user.immichUrl || process.env.IMMICH_URL || process.env.IMMICH_BASE_URL, key: user.immichApiKey || process.env.IMMICH_API_KEY } as any;
+      if (userCfg.url && userCfg.key) {
+        try {
+          const res = await fetch(`${userCfg.url}/api/asset/thumbnail/${photo.immichAssetId}?size=preview`, {
+            headers: { 'x-api-key': userCfg.key, Accept: 'application/octet-stream' },
+            signal: AbortSignal.timeout(15000),
+          });
+          if (res.ok) {
+            const buf = Buffer.from(await res.arrayBuffer());
+            imageBase64 = buf.toString('base64');
+          }
+        } catch (e) {
+          console.warn('Caption: immich thumbnail fetch failed, falling back to stub:', e);
+        }
+      }
+    }
+
     let captionResult: any;
-    const useClaude = typeof process !== 'undefined' && (process.env.ANTHROPIC_API_KEY?.length ?? 0) > 10;
+    const useClaude = isClaudeAvailable();
+    const useOpenAI = isOpenAIAVAILABLE();
 
-    if (useClaude) {
-      // For caption-only generation, we'd need the image data
-      // In a real implementation, we'd retrieve the image and pass it to the AI
-      // For now, we'll generate a generic caption based on existing analysis
-      const existingAnalysis = await prisma.analysis.findFirst({
-        where: { photoId },
-      });
+    if (imageBase64 && (useClaude || useOpenAI)) {
+      // Call the real AI with image bytes
+      try {
+        if (useClaude) {
+          captionResult = await generateCaptionWithClaude(imageBase64, style || 'casual', mimeType);
+        } else {
+          captionResult = await generateCaptionWithOpenAI(imageBase64, style || 'casual', mimeType);
+        }
+      } catch (aiErr) {
+        console.error('Caption AI error, falling back:', aiErr);
+        // Fall through to non-AI fallback below
+      }
+    }
 
-      // This is a simplified approach - in reality you'd need the image data
+    if (!captionResult) {
+      // Non-AI fallback (used when file not found or no AI key)
+      if (!imageBase64 && (useClaude || useOpenAI)) {
+        console.warn('Caption: no image bytes available; returning stub instead of claiming AI generated it.');
+      }
       captionResult = {
         caption: `Check out this amazing ${photo.category || 'photo'}! 📸`,
         hashtags: ['#travel', '#photooftheday', '#instagood'],
         emojis: ['😊', '👍'],
-      };
-    } else {
-      // OpenAI fallback - similar simplified approach
-      captionResult = {
-        caption: `Amazing capture! ${photo.category || 'Photo'} vibes only. ✨`,
-        hashtags: ['#travel', '#wanderlust', '#explore'],
-        emojis: ['🌟', '📷'],
       };
     }
 

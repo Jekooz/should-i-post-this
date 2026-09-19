@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { mkdir, writeFile, unlink } from 'fs/promises';
+import { writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -49,16 +49,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create temp directory if it doesn't exist
-    const tempDir = join(process.cwd(), 'temp');
-    await mkdir(tempDir, { recursive: true });
+    // Create uploads directory if it doesn't exist
+    const uploadsDir = join(process.cwd(), 'uploads');
+    await mkdir(uploadsDir, { recursive: true });
 
-    // Save uploaded file to temp location
+    // Generate unique filename and save to uploads
     const fileExtension = file.name.split('.').pop() || 'jpg';
     const uniqueFilename = `${uuidv4()}.${fileExtension}`;
-    const tempFilePath = join(tempDir, uniqueFilename);
+    const filePath = join(uploadsDir, uniqueFilename);
     const buffer = Buffer.from(await file.arrayBuffer());
-    await writeFile(tempFilePath, buffer);
+    await writeFile(filePath, buffer);
 
     // Get default user
     const user = await getOrCreateDefaultUser();
@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
           fileName: file.name,
           fileSize: file.size,
           mimeType: file.type,
-          fileUrl: `/temp/${uniqueFilename}`, // Note: In production, you'd move to permanent storage
+          fileUrl: `/api/uploads/${uniqueFilename}`, // Use secure upload route
           source: 'manual',
           analyzed: analyzeType !== 'caption-only',
           analyzedAt: analyzeType !== 'caption-only' ? new Date() : null,
@@ -171,11 +171,6 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      // Clean up temp file after a delay (in production, use a cleanup job)
-      setTimeout(() => {
-        unlink(tempFilePath).catch(console.error);
-      }, 60 * 1000); // Delete after 1 minute
-
       return createSuccessResponse(
         {
           photoId: photo.id,
@@ -188,8 +183,6 @@ export async function POST(request: NextRequest) {
       );
     } catch (aiError) {
       console.error('AI processing error:', aiError);
-      // Clean up temp file on error
-      await unlink(tempFilePath).catch(() => {});
       throw aiError;
     }
   } catch (error) {

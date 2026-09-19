@@ -12,12 +12,11 @@ export async function GET(request: NextRequest) {
     const immichUrl = user.immichUrl || process.env.IMMICH_URL || process.env.IMMICH_BASE_URL || '';
     const immichApiKey = user.immichApiKey || process.env.IMMICH_API_KEY;
 
-    // Expose only booleans and the (non-secret) URL/immich connection status
+    // Expose only booleans — never return the actual Immich URL or API keys to the browser
     return NextResponse.json({
       hasAnthropicKey: Boolean(anthropicKey && anthropicKey.length > 0),
       hasOpenAIKey: Boolean(openaiKey && openaiKey.length > 0),
       immich: {
-        url: immichUrl,
         hasApiKey: Boolean(immichApiKey && immichApiKey.length > 0),
         connected: Boolean(user.immichConnected),
       },

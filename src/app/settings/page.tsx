@@ -12,7 +12,7 @@ export default function SettingsPage() {
   const [settings, setSettings] = useState<{
     hasAnthropicKey: boolean;
     hasOpenAIKey: boolean;
-    immich: { url: string; hasApiKey: boolean; connected: boolean };
+    immich: { hasUrl: boolean; hasApiKey: boolean; connected: boolean };
   } | null>(null);
   const [loading, setLoading] = useState(true);
   const [testing, setTesting] = useState(false);
@@ -109,7 +109,7 @@ export default function SettingsPage() {
           <CardHeader>
             <CardTitle>Immich Connection</CardTitle>
             <CardDescription>
-              {settings?.immich.url ? `Configured URL: ${settings.immich.url}` : 'Set IMMICH_URL / IMMICH_API_KEY in .env.local or connect at runtime.'}
+              {settings?.immich.hasUrl ? 'Immich URL configured' : 'Set IMMICH_URL / IMMICH_API_KEY in .env.local or connect at runtime.'}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">

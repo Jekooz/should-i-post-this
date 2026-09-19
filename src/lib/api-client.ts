@@ -5,7 +5,9 @@ import { APP_NAME } from './constants';
 
 // API Client Configuration
 const API_CONFIG = {
-  baseURL: process.env.NEXT_PUBLIC_APP_URL || '',
+  // For browser requests, use relative URLs or current origin
+  // For server-side, use the provided base URL or environment variable
+  baseURL: typeof window !== 'undefined' ? '' : (process.env.NEXT_PUBLIC_APP_URL || ''),
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
@@ -99,7 +101,16 @@ class APIClient {
     const { body, params, headers: customHeaders = {}, timeout = this.timeout } = options;
 
     try {
-      const url = new URL(path, this.baseURL);
+      // In browser, use relative URLs which resolve against the current origin
+      // In server-side, use the configured base URL
+      let url: URL;
+      if (typeof window !== 'undefined') {
+        // Browser: use relative URL (path starts with /)
+        url = new URL(path, window.location.origin);
+      } else {
+        // Server-side: use configured base URL
+        url = new URL(path, this.baseURL || 'http://localhost:3000');
+      }
 
       if (params) {
         Object.entries(params).forEach(([key, value]) => {
@@ -188,7 +199,13 @@ class APIClient {
     formData: FormData,
     onProgress?: (progress: number) => void
   ): Promise<T> {
-    const url = new URL(path, this.baseURL);
+    // In browser, use relative URL
+    let url: URL;
+    if (typeof window !== 'undefined') {
+      url = new URL(path, window.location.origin);
+    } else {
+      url = new URL(path, this.baseURL || 'http://localhost:3000');
+    }
 
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();

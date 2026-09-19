@@ -16,14 +16,43 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Mocking the sync process:
-    // 1. In reality, we'd fetch the assets from Immich
-    // 2. Store them in the local Photo table as 'source: immich'
+    const immichUrl = user.immichUrl || process.env.IMMICH_URL || process.env.IMMICH_BASE_URL || '';
+    const immichApiKey = user.immichApiKey || process.env.IMMICH_API_KEY;
 
+    // 1. Update or create the ImmichSync record for this user
+    const existingSync = await prisma.immichSync.findFirst({
+      where: { userId: user.id },
+    });
+
+    if (existingSync) {
+      await prisma.immichSync.update({
+        where: { id: existingSync.id },
+        data: {
+          lastSyncedAt: new Date(),
+          photosCount: { increment: assetIds.length },
+          albumsCount: { increment: 1 },
+          status: 'idle',
+        },
+      });
+    } else {
+      await prisma.immichSync.create({
+        data: {
+          userId: user.id,
+          serverUrl: immichUrl,
+          apiKey: immichApiKey,
+          status: 'idle',
+          albumsCount: 1,
+          photosCount: assetIds.length,
+          lastSyncedAt: new Date(),
+        },
+      });
+    }
+
+    // 2. Sync photos to the database
     const syncedPhotos = await Promise.all(
       assetIds.map(async (assetId) => {
         return await prisma.photo.upsert({
-          where: { id: assetId }, // simplifying assetId as photoId
+          where: { id: assetId },
           update: { immichAlbumId: albumId },
           create: {
             id: assetId,
@@ -31,7 +60,7 @@ export async function POST(request: NextRequest) {
             fileName: `immich_${assetId}.jpg`,
             fileSize: 1024 * 1024,
             mimeType: 'image/jpeg',
-            fileUrl: `${user.immichUrl}/api/asset/thumbnail/${assetId}`,
+            fileUrl: `/api/immich/assets/${assetId}/thumbnail`,
             source: 'immich',
             immichAssetId: assetId,
             immichAlbumId: albumId,
