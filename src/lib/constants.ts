@@ -16,10 +16,10 @@ export const ACCEPTED_IMAGE_TYPES = [
 ];
 
 export const SCORING_WEIGHTS_DEFAULT = {
-  aesthetic: 0.3,
-  emotion: 0.3,
-  social: 0.4,
-  composition: 0.3,
+  aesthetic: 0.25,
+  emotion: 0.25,
+  social: 0.25,
+  composition: 0.25,
 };
 
 export const INSTAGRAM_LIMITS = {

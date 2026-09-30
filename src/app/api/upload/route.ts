@@ -64,8 +64,7 @@ export async function POST(request: NextRequest) {
         userId: user.id,
         fileName: file.name,
         fileSize: file.size,
-        mimeType: file.type,
-        fileUrl: `/uploads/${uniqueFilename}`,
+        mimeType: file.type,          fileUrl: `/api/uploads/${uniqueFilename}`,
         source: 'manual',
       },
     });

@@ -1,11 +1,10 @@
 import { notFound } from 'next/navigation';
+import Link from 'next/link';
+import Image from 'next/image';
 import { prisma } from '@/lib/db';
 
-export const generateStaticParams = async () => {
-  // This is a dynamic route, we cannot generate all params at build time.
-  // Return an empty array to indicate that we will generate params on demand.
-  return [];
-};
+// Photos are created at runtime; this page must always render on demand.
+export const dynamic = 'force-dynamic';
 
 export default async function PhotoPage({ params }: { params: { id: string } }) {
   const photoId = params.id;
@@ -37,17 +36,23 @@ export default async function PhotoPage({ params }: { params: { id: string } }) 
         <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
           <h1 className="text-3xl font-bold tracking-tight">Photo Details</h1>
           <div className="flex space-x-3">
-            <a href={`/edit/${photoId}`} className="button-link">
-              Edit Photo
-            </a>
+            <Link
+              href="/"
+              className="inline-flex items-center rounded-md border border-input px-4 py-2 text-sm font-medium hover:bg-accent"
+            >
+              Back to Photos
+            </Link>
           </div>
         </div>
 
         {/* Photo Preview */}
         <div className="space-y-6">
-          <img
+          <Image
             src={photo.fileUrl}
             alt={`${photo.fileName} preview`}
+            width={800}
+            height={400}
+            unoptimized
             className="rounded-lg border w-full h-[400px] object-cover"
           />
         </div>
@@ -140,9 +145,9 @@ export default async function PhotoPage({ params }: { params: { id: string } }) 
               <p className="text-lg">{latestCaption.caption}</p>
               <div className="flex flex-wrap gap-2 mt-2">
                 {latestCaption.hashtags
-                  ? JSON.parse(latestCaption.hashtags).map((tag: string) => (
+                  ? (JSON.parse(latestCaption.hashtags) as string[]).map((tag) => (
                       <span key={tag} className="bg-primary/10 text-primary px-2 py-1 rounded text-xs">
-                        #{tag}
+                        #{tag.replace(/^#+/, '')}
                       </span>
                     ))
                   : []}

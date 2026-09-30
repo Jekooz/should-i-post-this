@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getOrCreateDefaultUser } from '@/lib/db';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     const user = await getOrCreateDefaultUser();
@@ -17,6 +19,7 @@ export async function GET(request: NextRequest) {
       hasAnthropicKey: Boolean(anthropicKey && anthropicKey.length > 0),
       hasOpenAIKey: Boolean(openaiKey && openaiKey.length > 0),
       immich: {
+        hasUrl: Boolean(immichUrl && immichUrl.length > 0),
         hasApiKey: Boolean(immichApiKey && immichApiKey.length > 0),
         connected: Boolean(user.immichConnected),
       },

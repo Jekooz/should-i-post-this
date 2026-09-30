@@ -1,131 +1,91 @@
-// Immich API integration placeholder - would normally call Immich REST API
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
-import { getOrCreateDefaultUser } from '@/lib/db';
-import { handleAPIError, createSuccessResponse } from '@/lib/api-client';
+import { prisma, getOrCreateDefaultUser } from '@/lib/db';
+import {
+  getImmichConfig,
+  immichGetJSON,
+  asArray,
+  testImmichConnection,
+  mapAlbum,
+  mapAsset,
+  type ImmichAlbumDTO,
+  type ImmichAssetDTO,
+} from '@/lib/immich';
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const endpoint = searchParams.get('endpoint') || 'albums';
+    const endpoint = searchParams.get('endpoint') || '';
     const user = await getOrCreateDefaultUser();
 
-    // In a real implementation, this would make HTTP requests to the Immich server
-    // For now, returning mock data or empty arrays
+    if (endpoint === 'status') {
+      const config = getImmichConfig(user);
+      return NextResponse.json({
+        success: true,
+        data: {
+          configured: Boolean(config),
+          connected: Boolean(user.immichConnected),
+          url: config?.url ?? null,
+        },
+      });
+    }
 
     const config = getImmichConfig(user);
-    if (!config.url) {
-      return NextResponse.json({ success: false, error: 'Immich server URL not configured' }, { status: 400 });
+    if (!config) {
+      return NextResponse.json(
+        { success: false, error: 'Immich server URL not configured. Set it in Settings.' },
+        { status: 400 }
+      );
     }
 
     if (endpoint === 'albums') {
-      console.log('[Immich] GET albums from', config.url);
-      const res = await fetch(`${config.url}/api/album?limit=100`, {
-        headers: { 'x-api-key': config.key || '', Accept: 'application/json' },
-        signal: AbortSignal.timeout(15000),
-      });
-      console.log('[Immich] GET albums status', res.status);
-      if (!res.ok) {
-        const body = await res.text().catch(() => '(no body)');
-        console.error('[Immich] GET albums error body:', body.slice(0, 500));
-        return NextResponse.json({ success: false, error: `Immich albums error ${res.status}: ${body.slice(0, 200)}` }, { status: 502 });
-      }
-      const data = await res.json();
-      // Immich returns array directly
-      const albums = Array.isArray(data) ? data : (data.albums || []);
-      return createSuccessResponse(albums.map((a: any) => ({
-        id: a.id,
-        name: a.albumName || a.name,
-        photoCount: a.assetCount ?? a.photoCount ?? 0,
-        createdAt: a.createdAt,
-      })), 'Albums retrieved');
+      const albums = await immichGetJSON<ImmichAlbumDTO[] | { albums?: ImmichAlbumDTO[] }>(
+        config,
+        '/api/albums?limit=100'
+      );
+      return NextResponse.json({ success: true, data: asArray(albums).map(mapAlbum) });
     }
 
     if (endpoint === 'photos') {
       const albumId = searchParams.get('albumId');
-      console.log('[Immich] GET photos albumId=', albumId, 'from', config.url);
-      const qs = albumId ? `?albumId=${albumId}&limit=200` : '?limit=200';
-      const res = await fetch(`${config.url}/api/asset${qs}`, {
-        headers: { 'x-api-key': config.key || '', Accept: 'application/json' },
-        signal: AbortSignal.timeout(15000),
-      });
-      console.log('[Immich] GET photos status', res.status);
-      if (!res.ok) {
-        const body = await res.text().catch(() => '(no body)');
-        console.error('[Immich] GET photos error body:', body.slice(0, 500));
-        return NextResponse.json({ success: false, error: `Immich assets error ${res.status}: ${body.slice(0, 200)}` }, { status: 502 });
+      if (!albumId) {
+        return NextResponse.json(
+          { success: false, error: 'albumId is required' },
+          { status: 400 }
+        );
       }
-      const data = await res.json();
-      const photos = Array.isArray(data) ? data : (data.assets || []);
-      return createSuccessResponse(photos.map((p: any) => ({
-        id: p.id,
-        fileName: p.originalFileName || p.fileName || p.id,
-        fileUrl: `${config.url}/api/asset/thumbnail/${p.id}`,
-        type: p.type,
-        createdAt: p.localDateTime || p.createdAt,
-      })), 'Photos retrieved');
+      const data = await immichGetJSON<ImmichAssetDTO[] | { assets?: ImmichAssetDTO[] }>(
+        config,
+        `/api/albums/${albumId}/assets`
+      );
+      return NextResponse.json({ success: true, data: asArray(data).map(mapAsset) });
     }
 
-    return NextResponse.json(
-      { success: false, error: 'Invalid endpoint' },
-      { status: 400 }
-    );
+    return NextResponse.json({ success: false, error: 'Invalid endpoint' }, { status: 400 });
   } catch (error) {
     console.error('Immich API error:', error);
-    return handleAPIError(error);
-  }
-}
-
-function getImmichConfig(user?: { immichUrl?: string | null; immichApiKey?: string | null }) {
-  const url = user?.immichUrl || process.env.IMMICH_URL || process.env.IMMICH_BASE_URL;
-  const key = user?.immichApiKey || process.env.IMMICH_API_KEY;
-  return { url, key };
-}
-
-async function testImmichConnection(serverUrl: string, apiKey?: string) {
-  const cleanUrl = serverUrl.replace(/\/$/, '');
-  console.log('[Immich] Testing connection to', cleanUrl);
-  try {
-    const res = await fetch(`${cleanUrl}/api/albums`, {
-      headers: {
-        'x-api-key': apiKey || '',
-        Accept: 'application/json',
+    return NextResponse.json(
+      {
+        success: false,
+        error: error instanceof Error ? error.message : 'Immich request failed',
       },
-      signal: AbortSignal.timeout(8000),
-    });
-    console.log('[Immich] Connect response', res.status, res.statusText);
-    if (!res.ok) {
-      const body = await res.text().catch(() => '(no body)');
-      console.error('[Immich] Connect failed body:', body.slice(0, 500));
-      return { ok: false, status: res.status, body };
-    }
-    return { ok: true };
-  } catch (e) {
-    console.error('[Immich] Connect fetch error:', e);
-    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+      { status: 502 }
+    );
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    // Accept endpoint either as query param or from body (client may POST to /api/immich directly)
     let endpoint = searchParams.get('endpoint') || '';
-    const body = await request.json();
-    if (!endpoint) {
-      // if body looks like a connect request, treat as 'connect'
-      if (body.serverUrl || body.url) endpoint = 'connect';
-    }
-    const user = await getOrCreateDefaultUser();
+    const body = await request.json().catch(() => ({}));
+    if (!endpoint && (body.serverUrl || body.url)) endpoint = 'connect';
 
     if (endpoint === 'connect') {
-      // Test connection to Immich server
-      const serverUrl = body.serverUrl || body.url;
-      const apiKey = body.apiKey || body.key;
+      const serverUrl = (body.serverUrl || body.url) as string | undefined;
+      const apiKey = (body.apiKey || body.key) as string | undefined;
 
-      // Validate inputs — fall back to env vars if caller omitted them
       const effectiveUrl = serverUrl || process.env.IMMICH_URL || process.env.IMMICH_BASE_URL;
-      const effectiveKey = apiKey || process.env.IMMICH_API_KEY;
+      const effectiveKey = apiKey || process.env.IMMICH_API_KEY || '';
 
       if (!effectiveUrl) {
         return NextResponse.json(
@@ -134,63 +94,144 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const result = await testImmichConnection(effectiveUrl, effectiveKey);
+      const config = { url: effectiveUrl.replace(/\/+$/, ''), key: effectiveKey };
+      const ok = await testImmichConnection(config);
 
-      if (result.ok) {
-        // Update or create user record with Immich settings
-        await prisma.user.upsert({
-          where: { id: user.id },
-          update: {
-            immichUrl: effectiveUrl,
-            immichApiKey: effectiveKey,
-            immichConnected: true,
-          },
-          create: {
-            id: user.id,
-            email: user.email,
-            immichUrl: effectiveUrl,
-            immichApiKey: effectiveKey,
-            immichConnected: true,
-          }
-        });
-
-        return createSuccessResponse(
-          { connected: true, message: 'Successfully connected to Immich server', url: effectiveUrl },
-          'Immich connection successful'
-        );
-      } else {
-        const msg =
-          (result as any).body ||
-          (result as any).error ||
-          `Immich returned ${(result as any).status || 'unknown status'}`;
+      if (!ok) {
         return NextResponse.json(
-          { success: false, error: `Immich connection failed: ${msg}` },
+          {
+            success: false,
+            error:
+              'Could not reach the Immich server or the API key was rejected. Check the URL and key.',
+          },
           { status: 502 }
         );
       }
+
+      const user = await getOrCreateDefaultUser();
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { immichUrl: config.url, immichApiKey: effectiveKey, immichConnected: true },
+      });
+
+      return NextResponse.json({
+        success: true,
+        data: { connected: true, url: config.url },
+        message: 'Successfully connected to Immich server',
+      });
     }
 
     if (endpoint === 'sync') {
-      // Start sync from Immich
-      const { dateFrom, dateTo, albumIds } = body;
+      // Full server sync: import recent assets (optionally filtered by album/date range)
+      // as Photo rows backed by the thumbnail proxy.
+      const config = getImmichConfig();
+      if (!config) {
+        return NextResponse.json(
+          { success: false, error: 'Immich not configured' },
+          { status: 400 }
+        );
+      }
 
-      // In reality, this would trigger a background sync process
-      // For now, return a mock sync ID
-      const syncId = `sync-${Date.now()}`;
+      const user = await getOrCreateDefaultUser();
+      const { albumId, dateFrom, dateTo } = body as {
+        albumId?: string;
+        dateFrom?: string;
+        dateTo?: string;
+      };
 
-      return createSuccessResponse(
-        { syncId, status: 'started', message: 'Immich sync started' },
-        'Sync initiated'
-      );
+      // Gather assets: from one album, or the library within a date range.
+      let assets: ImmichAssetDTO[] = [];
+      if (albumId) {
+        const data = await immichGetJSON<ImmichAssetDTO[] | { assets?: ImmichAssetDTO[] }>(
+          config,
+          `/api/albums/${albumId}/assets`
+        );
+        assets = asArray(data);
+      } else {
+        const searchBody: Record<string, unknown> = { size: 500, type: 'IMAGE' };
+        if (dateFrom) searchBody.takenAfter = new Date(dateFrom).toISOString();
+        if (dateTo) searchBody.takenBefore = new Date(dateTo).toISOString();
+        const res = await fetch(`${config.url}/api/search/metadata`, {
+          method: 'POST',
+          headers: { 'x-api-key': config.key, 'Content-Type': 'application/json' },
+          body: JSON.stringify(searchBody),
+          signal: AbortSignal.timeout(20000),
+        });
+        if (!res.ok) {
+          const errBody = await res.text().catch(() => '');
+          return NextResponse.json(
+            { success: false, error: `Immich search failed ${res.status}: ${errBody.slice(0, 200)}` },
+            { status: 502 }
+          );
+        }
+        const data = (await res.json()) as { assets?: { id: string }[] };
+        assets = (data.assets || []).map((a) => ({ id: a.id, originalFileName: `immich_${a.id}` }));
+      }
+
+      let synced = 0;
+      for (const asset of assets) {
+        const mapped = mapAsset(asset);
+        await prisma.photo.upsert({
+          where: {
+            id: `immich-${asset.id}`,
+          },
+          update: {
+            source: 'immich',
+            analyzed: false,
+          },
+          create: {
+            id: `immich-${asset.id}`,
+            userId: user.id,
+            fileName: mapped.fileName,
+            fileSize: 0,
+            mimeType: 'image/jpeg',
+            fileUrl: mapped.thumbnailUrl,
+            thumbnailUrl: mapped.thumbnailUrl,
+            source: 'immich',
+            immichAssetId: asset.id,
+            immichAlbumId: albumId ?? null,
+          },
+        });
+        synced++;
+      }
+
+      // Record sync metadata
+      const existing = await prisma.immichSync.findFirst({ where: { userId: user.id } });
+      const syncData = {
+        serverUrl: config.url,
+        status: 'connected',
+        lastSyncedAt: new Date(),
+        albumsCount: albumId ? 1 : undefined,
+        photosCount: synced,
+      };
+      if (existing) {
+        await prisma.immichSync.update({
+          where: { id: existing.id },
+          data: syncData,
+        });
+      } else {
+        await prisma.immichSync.create({
+          data: { userId: user.id, ...syncData },
+        });
+      }
+
+      return NextResponse.json({
+        success: true,
+        data: { syncedCount: synced },
+        message: 'Photos synced from Immich',
+      });
     }
 
-    return NextResponse.json(
-      { success: false, error: 'Invalid endpoint' },
-      { status: 400 }
-    );
+    return NextResponse.json({ success: false, error: 'Invalid endpoint' }, { status: 400 });
   } catch (error) {
     console.error('Immich POST error:', error);
-    return handleAPIError(error);
+    return NextResponse.json(
+      {
+        success: false,
+        error: error instanceof Error ? error.message : 'Immich request failed',
+      },
+      { status: 502 }
+    );
   }
 }
 
@@ -201,29 +242,20 @@ export async function DELETE(request: NextRequest) {
 
     if (endpoint === 'disconnect') {
       const user = await getOrCreateDefaultUser();
-
-      // Clear Immich connection settings
       await prisma.user.update({
         where: { id: user.id },
-        data: {
-          immichUrl: null,
-          immichApiKey: null,
-          immichConnected: false,
-        }
+        data: { immichUrl: null, immichApiKey: null, immichConnected: false },
       });
-
-      return createSuccessResponse(
-        { disconnected: true, message: 'Disconnected from Immich server' },
-        'Immich disconnected'
-      );
+      return NextResponse.json({
+        success: true,
+        data: { disconnected: true },
+        message: 'Disconnected from Immich server',
+      });
     }
 
-    return NextResponse.json(
-      { success: false, error: 'Invalid endpoint' },
-      { status: 400 }
-    );
+    return NextResponse.json({ success: false, error: 'Invalid endpoint' }, { status: 400 });
   } catch (error) {
     console.error('Immich DELETE error:', error);
-    return handleAPIError(error);
+    return NextResponse.json({ success: false, error: 'Failed to disconnect' }, { status: 500 });
   }
 }

@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
-import { getOrCreateDefaultUser } from '@/lib/db';
-import { handleAPIError, createSuccessResponse } from '@/lib/api-client';
+import { prisma, getOrCreateDefaultUser } from '@/lib/db';
+import { getImmichConfig, immichGetJSON, asArray, type ImmichAssetDTO } from '@/lib/immich';
 
+export const dynamic = 'force-dynamic';
+
+/** Sync a specific album's assets into the local database as Photo rows. */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { albumId, assetIds } = body;
+    const { albumId, assetIds } = body as { albumId?: string; assetIds?: string[] };
     const user = await getOrCreateDefaultUser();
 
     if (!albumId || !assetIds || !Array.isArray(assetIds)) {
@@ -16,64 +18,80 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const immichUrl = user.immichUrl || process.env.IMMICH_URL || process.env.IMMICH_BASE_URL || '';
-    const immichApiKey = user.immichApiKey || process.env.IMMICH_API_KEY;
+    const config = getImmichConfig(user);
+    if (!config) {
+      return NextResponse.json({ success: false, error: 'Immich not configured' }, { status: 400 });
+    }
 
-    // 1. Update or create the ImmichSync record for this user
-    const existingSync = await prisma.immichSync.findFirst({
-      where: { userId: user.id },
-    });
+    // Fetch real metadata so file names and dates are correct (not `immich_<uuid>.jpg`).
+    const data = await immichGetJSON<ImmichAssetDTO[] | { assets?: ImmichAssetDTO[] }>(
+      config,
+      `/api/albums/${albumId}/assets`
+    );
+    const wanted = new Set(assetIds);
+    const assets = asArray(data).filter((a) => wanted.has(a.id));
 
-    if (existingSync) {
+    let synced = 0;
+    for (const asset of assets) {
+      await prisma.photo.upsert({
+        where: { id: `immich-${asset.id}` },
+        update: { immichAlbumId: albumId, source: 'immich', analyzed: false },
+        create: {
+          id: `immich-${asset.id}`,
+          userId: user.id,
+          fileName: asset.originalFileName || `immich_${asset.id}`,
+          fileSize: 0,
+          mimeType: 'image/jpeg',
+          fileUrl: `/api/immich/assets/${asset.id}/thumbnail`,
+          thumbnailUrl: `/api/immich/assets/${asset.id}/thumbnail`,
+          source: 'immich',
+          immichAssetId: asset.id,
+          immichAlbumId: albumId,
+          dateTaken: asset.localDateTime ? new Date(asset.localDateTime) : null,
+        },
+      });
+      synced++;
+    }
+
+    // Update sync record
+    const existing = await prisma.immichSync.findFirst({ where: { userId: user.id } });
+    if (existing) {
       await prisma.immichSync.update({
-        where: { id: existingSync.id },
+        where: { id: existing.id },
         data: {
           lastSyncedAt: new Date(),
-          photosCount: { increment: assetIds.length },
+          photosCount: { increment: synced },
           albumsCount: { increment: 1 },
-          status: 'idle',
+          status: 'connected',
         },
       });
     } else {
       await prisma.immichSync.create({
         data: {
           userId: user.id,
-          serverUrl: immichUrl,
-          apiKey: immichApiKey,
-          status: 'idle',
+          serverUrl: config.url,
+          apiKey: null,
+          status: 'connected',
           albumsCount: 1,
-          photosCount: assetIds.length,
+          photosCount: synced,
           lastSyncedAt: new Date(),
         },
       });
     }
 
-    // 2. Sync photos to the database
-    const syncedPhotos = await Promise.all(
-      assetIds.map(async (assetId) => {
-        return await prisma.photo.upsert({
-          where: { id: assetId },
-          update: { immichAlbumId: albumId },
-          create: {
-            id: assetId,
-            userId: user.id,
-            fileName: `immich_${assetId}.jpg`,
-            fileSize: 1024 * 1024,
-            mimeType: 'image/jpeg',
-            fileUrl: `/api/immich/assets/${assetId}/thumbnail`,
-            source: 'immich',
-            immichAssetId: assetId,
-            immichAlbumId: albumId,
-          },
-        });
-      })
-    );
-
-    return createSuccessResponse(
-      { syncedCount: syncedPhotos.length },
-      'Photos synced from Immich'
-    );
+    return NextResponse.json({
+      success: true,
+      data: { syncedCount: synced },
+      message: 'Photos synced from Immich',
+    });
   } catch (error) {
-    return handleAPIError(error);
+    console.error('Immich sync error:', error);
+    return NextResponse.json(
+      {
+        success: false,
+        error: error instanceof Error ? error.message : 'Sync failed',
+      },
+      { status: 502 }
+    );
   }
 }

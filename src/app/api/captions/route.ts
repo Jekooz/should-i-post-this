@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getOrCreateDefaultUser } from '@/lib/db';
 import { generateCaptionWithClaude, isClaudeAvailable } from '@/lib/ai-claude';
-import { generateCaptionWithOpenAI, isOpenAIAVAILABLE } from '@/lib/ai-openai';
+import { generateCaptionWithOpenAI, isOpenAIAvailable } from '@/lib/ai-openai';
 import { handleAPIError, createSuccessResponse } from '@/lib/api-client';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
@@ -41,13 +41,16 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate caption using available AI service and actual image bytes
-    // Forlocal files, read from disk; for immich, fetch via proxy
+    // For local files, read from disk; for immich, fetch via the asset proxy.
     let imageBase64: string | null = null;
     const mimeType = (photo.mimeType || 'image/jpeg') as 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif';
 
-    if (photo.fileUrl?.startsWith('/uploads/') || photo.fileUrl?.startsWith('/temp/')) {
+    if (photo.fileUrl?.startsWith('/api/uploads/') || photo.fileUrl?.startsWith('/uploads/') || photo.fileUrl?.startsWith('/temp/')) {
       try {
-        const filePath = join(process.cwd(), photo.fileUrl.replace(/^\//, ''));
+        const relative = photo.fileUrl
+          .replace(/^\/api\/uploads\//, 'uploads/')
+          .replace(/^\//, '');
+        const filePath = join(process.cwd(), relative);
         const buf = await readFile(filePath);
         imageBase64 = buf.toString('base64');
       } catch (e) {
@@ -74,7 +77,7 @@ export async function POST(request: NextRequest) {
 
     let captionResult: any;
     const useClaude = isClaudeAvailable();
-    const useOpenAI = isOpenAIAVAILABLE();
+    const useOpenAI = isOpenAIAvailable();
 
     if (imageBase64 && (useClaude || useOpenAI)) {
       // Call the real AI with image bytes
@@ -97,10 +100,16 @@ export async function POST(request: NextRequest) {
       }
       captionResult = {
         caption: `Check out this amazing ${photo.category || 'photo'}! 📸`,
-        hashtags: ['#travel', '#photooftheday', '#instagood'],
+        hashtags: ['travel', 'photooftheday', 'instagood'],
         emojis: ['😊', '👍'],
       };
     }
+
+    // Normalize hashtags (strip leading '#') so storage and UI stay consistent
+    const hashtags = (captionResult.hashtags || [])
+      .filter((t: unknown): t is string => typeof t === 'string')
+      .map((t: string) => t.replace(/^#+/, '').trim())
+      .filter(Boolean);
 
     // Save caption to database
     const caption = await prisma.caption.create({
@@ -109,7 +118,7 @@ export async function POST(request: NextRequest) {
         userId: user.id,
         style: style || 'casual',
         caption: captionResult.caption,
-        hashtags: JSON.stringify(captionResult.hashtags),
+        hashtags: JSON.stringify(hashtags),
         emojis: JSON.stringify(captionResult.emojis),
         charCount: captionResult.caption.length,
         isOptimal: style === 'casual',
@@ -121,7 +130,7 @@ export async function POST(request: NextRequest) {
       {
         id: caption.id,
         caption: caption.caption,
-        hashtags: captionResult.hashtags,
+        hashtags,
         emojis: captionResult.emojis,
         style: caption.style,
       },

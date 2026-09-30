@@ -1,12 +1,13 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { usePhotoStore } from '@/store/photo-store';
 import { Button } from '@/components/ui/Button';
+import Image from 'next/image';
 import { Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-export function AlbumBrowser() {
+export function AlbumBrowser({ onSynced }: { onSynced?: () => void }) {
   const [albums, setAlbums] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedAlbum, setSelectedAlbum] = useState<string>('');
@@ -14,19 +15,20 @@ export function AlbumBrowser() {
   const [syncing, setSyncing] = useState(false);
   const { addPhotos } = usePhotoStore();
 
-  useEffect(() => {
-    async function loadAlbums() {
-      try {
-        const res = await apiClient.get<any>('/api/immich/albums');
-        setAlbums(res.data);
-      } catch (e) {
-        toast.error('Failed to load Immich albums');
-      } finally {
-        setLoading(false);
-      }
+  const loadAlbums = useCallback(async () => {
+    try {
+      const res = await apiClient.get<any>('/api/immich/albums');
+      setAlbums(res.data);
+    } catch {
+      // Silent: Immich may not be configured yet; the connect panel handles onboarding.
+    } finally {
+      setLoading(false);
     }
-    loadAlbums();
   }, []);
+
+  useEffect(() => {
+    loadAlbums();
+  }, [loadAlbums]);
 
   const loadPhotos = async (albumId: string) => {
     setSelectedAlbum(albumId);
@@ -47,8 +49,8 @@ export function AlbumBrowser() {
     try {
       const assetIds = photos.map(p => p.id);
       const res = await apiClient.post<any>('/api/immich/sync', { albumId: selectedAlbum, assetIds });
-      addPhotos(photos); // Add them to local store
       toast.success(`Synced ${res.data.syncedCount} photos!`);
+      onSynced?.();
     } catch (e) {
       toast.error('Sync failed');
     } finally {
@@ -97,7 +99,7 @@ export function AlbumBrowser() {
           <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
             {photos.map(photo => (
               <div key={photo.id} className="aspect-square rounded bg-muted overflow-hidden relative group">
-                <img src={photo.fileUrl} alt={photo.fileName} className="object-cover w-full h-full" />
+                <Image src={photo.fileUrl} alt={photo.fileName} width={200} height={200} unoptimized className="object-cover w-full h-full" />
                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                    <span className="text-[10px] text-white truncate px-1">{photo.fileName}</span>
                 </div>

@@ -22,7 +22,7 @@ export function PhotoCard({ photo, className = '' }: PhotoCardProps) {
   };
 
   return (
-    <Link href={`/gallery/${photo.id}`} className={className}>
+    <Link href={`/photos/${photo.id}`} className={className}>
       <article className="group flex flex-col h-full border rounded-lg overflow-hidden hover:border-primary transition-all">
         <div className="relative aspect-w-16 aspect-h-9">
           <Image

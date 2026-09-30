@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/Label';
 import { Alert } from '@/components/ui/Alert';
 import toast from 'react-hot-toast';
 
-export function ImmichConnect() {
+export function ImmichConnect({ onConnected }: { onConnected?: () => void }) {
   const [serverUrl, setServerUrl] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [isConnecting, setIsConnecting] = useState(false);
@@ -19,6 +19,7 @@ export function ImmichConnect() {
     try {
       await connect({ serverUrl, apiKey });
       toast.success('Connected to Immich server');
+      onConnected?.();
     } catch (err) {
       toast.error('Failed to connect to Immich server');
     } finally {

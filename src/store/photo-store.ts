@@ -203,10 +203,12 @@ export const usePhotoStore = create<PhotoState>()(
               if (photo) {
                 photo.analyzed = true;
                 photo.analyzedAt = new Date();
-                photo.overallScore = Number(JSON.parse(result.composition).score || 0) +
-                                     Number(JSON.parse(result.emotion).score || 0) +
-                                     Number(JSON.parse(result.aesthetic).score || 0) +
-                                     Number(JSON.parse(result.social).score || 0) / 4;
+                // Correct weighted average: the old code only divided the social score by 4.
+                const comp = Number(JSON.parse(result.composition)?.score || 0);
+                const emo = Number(JSON.parse(result.emotion)?.score || 0);
+                const aes = Number(JSON.parse(result.aesthetic)?.score || 0);
+                const soc = Number(JSON.parse(result.social)?.score || 0);
+                photo.overallScore = (comp + emo + aes + soc) / 4;
               }
             }),
             false,

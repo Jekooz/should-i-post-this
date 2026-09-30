@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getOrCreateDefaultUser } from '@/lib/db';
 
+// Stats must be computed per-request, never frozen at build time.
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     const user = await getOrCreateDefaultUser();

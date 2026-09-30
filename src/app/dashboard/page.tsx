@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Alert } from '@/components/ui/Alert';
 import Link from 'next/link';
+import Image from 'next/image';
 import toast from 'react-hot-toast';
 
 interface Activity {
@@ -280,9 +281,12 @@ export default function DashboardPage() {
                   <div key={activity.id} className="flex items-center justify-between border-b pb-4 last:border-0 last:pb-0">
                     <div className="flex items-center space-x-4">
                       <div className="h-12 w-12 bg-muted rounded-md flex items-center justify-center overflow-hidden">
-                        <img
+                        <Image
                           src={activity.photo.fileUrl || '/placeholder-photo.jpg'}
-                          alt="Photo"
+                          alt={activity.photo.fileName || 'Photo'}
+                          width={48}
+                          height={48}
+                          unoptimized
                           className="w-full h-full object-cover"
                         />
                       </div>

@@ -1,7 +1,7 @@
 'use client';
 import { useState, useCallback } from 'react';
 import { useDropzone, Accept } from 'react-dropzone';
-import { Upload, X, Image, Loader2 } from 'lucide-react';
+import { Upload, X, ImageIcon, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface ImageUploaderProps {
@@ -102,7 +102,7 @@ export function ImageUploader({ onUpload, disabled, maxFiles = 50 }: ImageUpload
                 className="flex items-center justify-between gap-3 p-2 rounded bg-accent"
               >
                 <div className="flex items-center gap-2">
-                  <Image className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <ImageIcon className="h-4 w-4 text-muted-foreground shrink-0" />
                   <span className="text-sm truncate">{file.name}</span>
                   <span className="text-xs text-muted-foreground shrink-0">
                     {(file.size / 1024 / 1024).toFixed(1)}MB
