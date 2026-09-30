@@ -10,8 +10,7 @@ import toast from 'react-hot-toast';
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<{
-    hasAnthropicKey: boolean;
-    hasOpenAIKey: boolean;
+    hasHuggingFaceKey: boolean;
     immich: { hasUrl: boolean; hasApiKey: boolean; connected: boolean };
   } | null>(null);
   const [loading, setLoading] = useState(true);
@@ -51,7 +50,7 @@ export default function SettingsPage() {
   const copyEnvHints = async () => {
     try {
       await navigator.clipboard.writeText(
-        'ANTHROPIC_API_KEY=\nOPENAI_API_KEY=\nIMMICH_URL=\nIMMICH_API_KEY='
+        'HUGGINGFACE_API_KEY=\nHUGGINGFACE_MODEL=\nIMMICH_URL=\nIMMICH_API_KEY='
       );
       toast.success('Copied env var names to clipboard');
     } catch {
@@ -71,31 +70,22 @@ export default function SettingsPage() {
           <CardHeader>
             <CardTitle>AI Provider Keys</CardTitle>
             <CardDescription>
-              Your Anthropic and OpenAI keys are read from environment variables on the server. For local development, set them in .env.local.
+              Your Hugging Face token is read from environment variables on the server. For local development, set it in .env.local. Create one at huggingface.co/settings/tokens with &quot;Make calls to Inference Providers&quot; permission.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label>Anthropic API Key</Label>
-                <span className={`text-xs px-2 py-0.5 rounded-full ${loading ? 'bg-muted text-muted-foreground' : settings?.hasAnthropicKey ? 'bg-green-500/15 text-green-600' : 'bg-amber-500/15 text-amber-600'}`}>
-                  {loading ? 'checking…' : settings?.hasAnthropicKey ? 'configured' : 'not configured'}
+                <Label>Hugging Face Token</Label>
+                <span className={`text-xs px-2 py-0.5 rounded-full ${loading ? 'bg-muted text-muted-foreground' : settings?.hasHuggingFaceKey ? 'bg-green-500/15 text-green-600' : 'bg-amber-500/15 text-amber-600'}`}>
+                  {loading ? 'checking…' : settings?.hasHuggingFaceKey ? 'configured' : 'not configured'}
                 </span>
               </div>
-              <Input type="password" placeholder={settings?.hasAnthropicKey ? 'Configured (stored server-side)' : 'sk-ant-...'} disabled value="" />
+              <Input type="password" placeholder={settings?.hasHuggingFaceKey ? 'Configured (stored server-side)' : 'hf_...'} disabled value="" />
             </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label>OpenAI API Key</Label>
-                <span className={`text-xs px-2 py-0.5 rounded-full ${loading ? 'bg-muted text-muted-foreground' : settings?.hasOpenAIKey ? 'bg-green-500/15 text-green-600' : 'bg-amber-500/15 text-amber-600'}`}>
-                  {loading ? 'checking…' : settings?.hasOpenAIKey ? 'configured' : 'not configured'}
-                </span>
-              </div>
-              <Input type="password" placeholder={settings?.hasOpenAIKey ? 'Configured (stored server-side)' : 'sk-...'} disabled value="" />
-            </div>
-            {!loading && !settings?.hasAnthropicKey && !settings?.hasOpenAIKey && (
+            {!loading && !settings?.hasHuggingFaceKey && (
               <Alert variant="destructive">
-                No AI provider key is configured. Photo analysis will fail — set ANTHROPIC_API_KEY or OPENAI_API_KEY in .env.local and restart the server.
+                No AI provider token is configured. Photo analysis will fail — set HUGGINGFACE_API_KEY in .env.local and restart the server.
               </Alert>
             )}
             <p className="text-xs text-muted-foreground">

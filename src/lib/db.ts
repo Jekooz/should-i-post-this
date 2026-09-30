@@ -24,7 +24,7 @@ export async function getOrCreateDefaultUser() {
     user = await prisma.user.create({
       data: {
         email: 'default@example.com',
-        primaryModel: 'claude-vision',
+        primaryModel: 'hf-inference-providers',
       },
       include: { scoringWeights: true },
     });

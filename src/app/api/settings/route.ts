@@ -9,15 +9,13 @@ export async function GET(request: NextRequest) {
     const user = await getOrCreateDefaultUser();
 
     // Read secret env vars server-side. NEVER return their values to the client.
-    const anthropicKey = process.env.ANTHROPIC_API_KEY;
-    const openaiKey = process.env.OPENAI_API_KEY;
+    const hfKey = process.env.HUGGINGFACE_API_KEY;
     const immichUrl = user.immichUrl || process.env.IMMICH_URL || process.env.IMMICH_BASE_URL || '';
     const immichApiKey = user.immichApiKey || process.env.IMMICH_API_KEY;
 
     // Expose only booleans — never return the actual Immich URL or API keys to the browser
     return NextResponse.json({
-      hasAnthropicKey: Boolean(anthropicKey && anthropicKey.length > 0),
-      hasOpenAIKey: Boolean(openaiKey && openaiKey.length > 0),
+      hasHuggingFaceKey: Boolean(hfKey && hfKey.length > 0),
       immich: {
         hasUrl: Boolean(immichUrl && immichUrl.length > 0),
         hasApiKey: Boolean(immichApiKey && immichApiKey.length > 0),

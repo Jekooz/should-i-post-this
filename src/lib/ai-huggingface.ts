@@ -1,7 +1,6 @@
-import Anthropic from '@anthropic-ai/sdk';
-import { ClaudeVisionResponse, ScoreBreakdown } from '@/types/analysis';
+import OpenAI from 'openai';
+import { VisionAnalysisResponse, ScoreBreakdown } from '@/types/analysis';
 import { env } from './env';
-import { extractJSON } from './ai-openai';
 
 const SYSTEM_PROMPT = `You are an expert photo analyst and social media content creator.
 Analyze the photo and score it across 4 dimensions (0-10 scale):
@@ -22,8 +21,7 @@ Return ONLY valid JSON in this exact structure:
   "suggestedCaption": "A short social media caption for this photo"
 }`;
 
-const CAPTION_PROMPT = (style: string, context?: string) => `Generate a ${style} Instagram caption for this photo.
-${context ? `Context: ${context}\n` : ''}
+const CAPTION_PROMPT = (style: string) => `Generate a ${style} Instagram caption for this photo.
 Include:
 1. An engaging caption (max 150 words)
 2. 10-15 relevant hashtags
@@ -39,7 +37,7 @@ Return ONLY valid JSON:
 const VALID_MEDIA_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'] as const;
 export type AIMimeType = (typeof VALID_MEDIA_TYPES)[number];
 
-/** Claude only accepts jpeg/png/webp/gif — HEIC/HEIF must be rejected before calling. */
+/** Vision endpoints only accept jpeg/png/webp/gif — HEIC/HEIF must be rejected before calling. */
 export function toAIMimeType(mimeType: string | null | undefined): AIMimeType | null {
   if (!mimeType) return null;
   const normalized = mimeType.toLowerCase().split(';')[0];
@@ -48,14 +46,27 @@ export function toAIMimeType(mimeType: string | null | undefined): AIMimeType | 
     : null;
 }
 
-// Lazily create the client so a missing key doesn't crash at import time.
-let _client: Anthropic | null = null;
-function getClient(): Anthropic {
+/** Extract the first JSON object from a model response, tolerating markdown fences. */
+export function extractJSON(text: string): Record<string, unknown> | null {
+  const cleaned = text.replace(/```json\s*/gi, '').replace(/```/g, '').trim();
+  const match = cleaned.match(/\{[\s\S]*\}/);
+  if (!match) return null;
+  try {
+    return JSON.parse(match[0]);
+  } catch {
+    return null;
+  }
+}
+
+// Lazily create the client: constructing an OpenAI instance without an API key
+// throws at import time, which would crash every route that imports this file.
+let _client: OpenAI | null = null;
+function getClient(): OpenAI {
   if (!_client) {
-    _client = new Anthropic({
-      apiKey: env.ANTHROPIC_API_KEY!,
-      // Support gateways/proxies via env (e.g. ANTHROPIC_BASE_URL=https://gateway.example.com/anthropic)
-      baseURL: env.ANTHROPIC_BASE_URL || undefined,
+    _client = new OpenAI({
+      apiKey: env.HUGGINGFACE_API_KEY,
+      // Hugging Face Inference Providers exposes an OpenAI-compatible router
+      baseURL: env.HUGGINGFACE_BASE_URL || 'https://router.huggingface.co/v1',
       // Fail fast when the provider hangs instead of wedging the handler for minutes
       timeout: env.AI_REQUEST_TIMEOUT_MS,
       maxRetries: 1,
@@ -64,7 +75,7 @@ function getClient(): Anthropic {
   return _client;
 }
 
-function clampScores(parsed: Partial<ClaudeVisionResponse> | null): ScoreBreakdown {
+function clampScores(parsed: Partial<VisionAnalysisResponse> | null): ScoreBreakdown {
   const clamp = (n: unknown) => Math.min(10, Math.max(0, Number(n) || 0));
   const scores: ScoreBreakdown = {
     composition: clamp(parsed?.composition?.score),
@@ -78,74 +89,56 @@ function clampScores(parsed: Partial<ClaudeVisionResponse> | null): ScoreBreakdo
   return scores;
 }
 
-export async function analyzeWithClaude(
+function chatContent(imageBase64: string, mimeType: AIMimeType, prompt: string) {
+  return [
+    { type: 'text' as const, text: prompt },
+    {
+      type: 'image_url' as const,
+      image_url: { url: `data:${mimeType};base64,${imageBase64}` },
+    },
+  ];
+}
+
+export async function analyzeWithHuggingFace(
   imageBase64: string,
   mimeType: AIMimeType = 'image/jpeg'
-): Promise<{ scores: ScoreBreakdown; rawResponse: Partial<ClaudeVisionResponse> }> {
-  const response = await getClient().messages.create({
-    model: env.ANTHROPIC_MODEL,
+): Promise<{ scores: ScoreBreakdown; rawResponse: Partial<VisionAnalysisResponse> }> {
+  const response = await getClient().chat.completions.create({
+    model: env.HUGGINGFACE_MODEL,
     max_tokens: 1024,
-    messages: [
-      {
-        role: 'user',
-        content: [
-          {
-            type: 'image',
-            source: {
-              type: 'base64',
-              media_type: mimeType,
-              data: imageBase64,
-            },
-          },
-          { type: 'text', text: SYSTEM_PROMPT },
-        ],
-      },
-    ],
+    messages: [{ role: 'user', content: chatContent(imageBase64, mimeType, SYSTEM_PROMPT) }],
   });
 
-  const text = response.content.find((c) => c.type === 'text')?.text ?? '';
-  const parsed = extractJSON(text) as Partial<ClaudeVisionResponse> | null;
+  const text = response.choices[0]?.message?.content ?? '';
+  const parsed = extractJSON(text) as Partial<VisionAnalysisResponse> | null;
   if (!parsed) {
-    throw new Error('Claude returned a non-JSON analysis response');
+    throw new Error('Hugging Face model returned a non-JSON analysis response');
   }
 
   return { scores: clampScores(parsed), rawResponse: parsed };
 }
 
-export async function generateCaptionWithClaude(
+export async function generateCaptionWithHuggingFace(
   imageBase64: string,
   style: string = 'casual',
   mimeType: AIMimeType = 'image/jpeg'
 ) {
-  const response = await getClient().messages.create({
-    model: env.ANTHROPIC_MODEL,
+  const response = await getClient().chat.completions.create({
+    model: env.HUGGINGFACE_MODEL,
     max_tokens: 1024,
-    messages: [
-      {
-        role: 'user',
-        content: [
-          {
-            type: 'image',
-            source: {
-              type: 'base64',
-              media_type: mimeType,
-              data: imageBase64,
-            },
-          },
-          { type: 'text', text: CAPTION_PROMPT(style) },
-        ],
-      },
-    ],
+    messages: [{ role: 'user', content: chatContent(imageBase64, mimeType, CAPTION_PROMPT(style)) }],
   });
 
-  const text = response.content.find((c) => c.type === 'text')?.text ?? '';
+  const text = response.choices[0]?.message?.content ?? '';
   const parsed = extractJSON(text);
   if (!parsed || typeof parsed.caption !== 'string') {
-    throw new Error('Claude returned a non-JSON caption response');
+    throw new Error('Hugging Face model returned a non-JSON caption response');
   }
   return parsed as { caption: string; hashtags?: string[]; emojis?: string[] };
 }
 
-export function isClaudeAvailable(): boolean {
-  return Boolean(env.ANTHROPIC_API_KEY && env.ANTHROPIC_API_KEY.length > 10);
+export function isHuggingFaceAvailable(): boolean {
+  return Boolean(
+    env.HUGGINGFACE_API_KEY && env.HUGGINGFACE_API_KEY.length > 10
+  );
 }

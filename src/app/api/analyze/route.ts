@@ -5,16 +5,11 @@ import { v4 as uuidv4 } from 'uuid';
 
 import { prisma, getOrCreateDefaultUser } from '@/lib/db';
 import {
-  analyzeWithClaude,
-  generateCaptionWithClaude,
-  isClaudeAvailable,
+  analyzeWithHuggingFace,
+  generateCaptionWithHuggingFace,
+  isHuggingFaceAvailable,
   toAIMimeType,
-} from '@/lib/ai-claude';
-import {
-  analyzeWithOpenAI,
-  generateCaptionWithOpenAI,
-  isOpenAIAvailable,
-} from '@/lib/ai-openai';
+} from '@/lib/ai-huggingface';
 import { SUPPORTED_MIME_TYPES, MAX_FILE_SIZE } from '@/types/photo';
 import type { ScoreBreakdown } from '@/types/analysis';
 
@@ -160,13 +155,11 @@ export async function POST(request: NextRequest) {
     }
 
     // ─── AI availability + mime validation ───
-    const useClaude = isClaudeAvailable();
-    const useOpenAI = !useClaude && isOpenAIAvailable();
-    if (!useClaude && !useOpenAI) {
+    if (!isHuggingFaceAvailable()) {
       return NextResponse.json(
         {
           success: false,
-          error: 'No AI service available. Configure ANTHROPIC_API_KEY or OPENAI_API_KEY.',
+          error: 'No AI service available. Configure HUGGINGFACE_API_KEY.',
         },
         { status: 503 }
       );
@@ -186,21 +179,17 @@ export async function POST(request: NextRequest) {
 
     // ─── Run AI ───
     const base64Image = fileBuffer.toString('base64');
-    const provider = useClaude ? 'claude-vision' : 'openai-vision';
+    const provider = 'hf-inference-providers';
     const startedAt = Date.now();
 
     let analysisResult: { scores: ScoreBreakdown; rawResponse: Record<string, unknown> } | null = null;
     let captionResult: { caption: string; hashtags?: string[]; emojis?: string[] } | null = null;
 
     if (analyzeType === 'full' || analyzeType === 'scores-only') {
-      analysisResult = useClaude
-        ? await analyzeWithClaude(base64Image, aiMime)
-        : await analyzeWithOpenAI(base64Image, aiMime);
+      analysisResult = await analyzeWithHuggingFace(base64Image, aiMime);
     }
     if (analyzeType === 'full' || analyzeType === 'caption-only') {
-      captionResult = useClaude
-        ? await generateCaptionWithClaude(base64Image, captionStyle, aiMime)
-        : await generateCaptionWithOpenAI(base64Image, captionStyle, aiMime);
+      captionResult = await generateCaptionWithHuggingFace(base64Image, captionStyle, aiMime);
     }
     const processingTime = (Date.now() - startedAt) / 1000;
 

@@ -29,8 +29,7 @@ export const INSTAGRAM_LIMITS = {
 };
 
 export const AI_MODELS = {
-  claude: 'claude-vision',
-  openai: 'gpt-4-vision',
+  huggingface: 'hf-inference-providers',
 } as const;
 
 export type AIModel = (typeof AI_MODELS)[keyof typeof AI_MODELS];
@@ -87,11 +86,7 @@ export const CACHE_CONFIG = {
 };
 
 export const RATE_LIMITS = {
-  claude: {
-    requestsPerMinute: 3,
-    tokensPerMinute: 100000,
-  },
-  openai: {
+  huggingface: {
     requestsPerMinute: 10,
     tokensPerMinute: 150000,
   },

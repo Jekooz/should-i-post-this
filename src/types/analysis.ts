@@ -24,7 +24,7 @@ export interface ScoreBreakdown {
   overall: number;
 }
 
-export interface ClaudeVisionResponse {
+export interface VisionAnalysisResponse {
   composition: {
     score: number;
     reasoning: string;

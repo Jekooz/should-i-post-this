@@ -1,12 +1,12 @@
 # Trip Photo Analyzer
 
-A Next.js 14 + TypeScript application that helps you select the best photos from your trips and generate engaging captions for social media. The app integrates with [Immich](https://immich.app/) (self-hosted photo management) and uses AI (Anthropic Claude / OpenAI) for photo analysis and caption generation.
+A Next.js 14 + TypeScript application that helps you select the best photos from your trips and generate engaging captions for social media. The app integrates with [Immich](https://immich.app/) (self-hosted photo management) and uses AI vision models via [Hugging Face Inference Providers](https://huggingface.co/docs/inference-providers) for photo analysis and caption generation.
 
 ## Features
 
 - **Manual Upload**: Drag & drop or select photos from your device.
 - **Immich Integration**: Connect to your self-hosted Immich server to browse albums and sync photos.
-- **AI-Powered Analysis**: Analyze photos on composition, aesthetics, emotion, and social readiness using Claude Vision (with OpenAI fallback).
+- **AI-Powered Analysis**: Analyze photos on composition, aesthetics, emotion, and social readiness using open vision models (Llama 4, Qwen-VL, and more).
 - **Smart Caption Generation**: Generate engaging captions with hashtags and emojis tailored to each photo.
 - **Photo Scoring & Ranking**: Get an overall score and breakdown to pick the best shots.
 - **Dashboard & Activity**: See photo counts, average scores, recent activity, and Immich sync status.
@@ -17,7 +17,7 @@ A Next.js 14 + TypeScript application that helps you select the best photos from
 - **Language**: TypeScript (strict mode)
 - **Styling**: Tailwind CSS
 - **State Management**: Zustand (+ Immer)
-- **AI Providers**: Anthropic Claude Vision API (`@anthropic-ai/sdk`), OpenAI GPT-4o Vision (`openai`)
+- **AI Providers**: Hugging Face Inference Providers (OpenAI-compatible router, `openai` SDK)
 - **Database**: Prisma ORM with SQLite (dev)
 - **Photo Processing**: exifr (EXIF)
 - **Toasts**: react-hot-toast
@@ -30,7 +30,7 @@ A Next.js 14 + TypeScript application that helps you select the best photos from
 - Node.js >= 18
 - npm / yarn / pnpm
 - An Immich server (optional, for Immich features)
-- API keys for Anthropic and/or OpenAI (for AI features)
+- A Hugging Face token with Inference Providers permission (for AI features)
 
 ### Installation
 
@@ -46,9 +46,9 @@ A Next.js 14 + TypeScript application that helps you select the best photos from
    # Database
    DATABASE_URL="file:./dev.db"
 
-   # AI APIs (at least one required for analysis/captions)
-   ANTHROPIC_API_KEY=your_anthropic_key_here
-   OPENAI_API_KEY=your_openai_key_here
+   # AI (required for analysis/captions)
+   HUGGINGFACE_API_KEY=your_hf_token_here
+   # HUGGINGFACE_MODEL=meta-llama/Llama-4-Scout-17B-16E-Instruct
 
    # Immich (optional)
    IMMICH_URL=http://your-immich-server:2283
@@ -118,7 +118,7 @@ src/
 │   ├── layout/                 # Navbar
 │   └── ui/                     # Button, Card, Input, Label, Alert, Toast
 ├── hooks/                      # useUpload, useImmich
-├── lib/                        # db, env, ai-claude, ai-openai, immich, scoring, api-client
+├── lib/                        # db, env, ai-huggingface, immich, scoring, api-client
 ├── store/                      # Zustand store (photo-store)
 └── types/                      # TypeScript interfaces
 ```
@@ -149,8 +149,8 @@ src/
 | Variable | Description | Example |
 |----------|-------------|---------|
 | `DATABASE_URL` | Prisma database connection string | `file:./dev.db` |
-| `ANTHROPIC_API_KEY` | Key for Anthropic Claude API | `sk-ant-...` |
-| `OPENAI_API_KEY` | Key for OpenAI API | `sk-...` |
+| `HUGGINGFACE_API_KEY` | Hugging Face token (Inference Providers permission) | `hf_...` |
+| `HUGGINGFACE_MODEL` | Vision model for analysis/captions | `meta-llama/Llama-4-Scout-17B-16E-Instruct` |
 | `IMMICH_URL` | Base URL of your Immich server (no trailing slash) | `http://192.168.1.100:2283` |
 | `IMMICH_API_KEY` | API key for Immich (generate in Immich server settings) | `...` |
 
@@ -185,5 +185,5 @@ This project is licensed under the MIT License.
 
 - [shadcn/ui](https://ui.shadcn.com/) for the component primitives
 - [Immich](https://immich.app/) for the self-hosted photo solution
-- [Anthropic](https://www.anthropic.com/) and [OpenAI](https://openai.com/) for their AI APIs
+- [Hugging Face](https://huggingface.co/) for Inference Providers
 - [Tailwind CSS](https://tailwindcss.com/) and [Zustand](https://zustand-demo.pmnd.rs/) for styling and state

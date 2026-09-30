@@ -6,12 +6,10 @@ const envSchema = z.object({
     .enum(['development', 'production', 'test'])
     .default('development'),
   DATABASE_URL: z.string().min(1),
-  ANTHROPIC_API_KEY: z.string().optional(),
-  OPENAI_API_KEY: z.string().optional(),
-  ANTHROPIC_MODEL: z.string().default('claude-sonnet-4-20250514'),
-  OPENAI_MODEL: z.string().default('gpt-4o'),
-  ANTHROPIC_BASE_URL: z.string().optional(),
-  OPENAI_BASE_URL: z.string().optional(),
+  HUGGINGFACE_API_KEY: z.string().optional(),
+  /** Vision-capable model on Hugging Face Inference Providers. */
+  HUGGINGFACE_MODEL: z.string().default('meta-llama/Llama-4-Scout-17B-16E-Instruct'),
+  HUGGINGFACE_BASE_URL: z.string().optional(),
   /** Per-request timeout for AI providers (ms). Bounds how long a hung gateway can wedge a handler. */
   AI_REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().default(30000),
   IMMICH_URL: z.string().optional(),
@@ -43,12 +41,10 @@ export function getEnv(): z.infer<typeof envSchema> {
     cachedEnv = {
       NODE_ENV: 'development',
       DATABASE_URL: process.env.DATABASE_URL || 'file:./dev.db',
-      ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
-      OPENAI_API_KEY: process.env.OPENAI_API_KEY,
-      ANTHROPIC_MODEL: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-20250514',
-      OPENAI_MODEL: process.env.OPENAI_MODEL || 'gpt-4o',
-      ANTHROPIC_BASE_URL: process.env.ANTHROPIC_BASE_URL,
-      OPENAI_BASE_URL: process.env.OPENAI_BASE_URL,
+      HUGGINGFACE_API_KEY: process.env.HUGGINGFACE_API_KEY,
+      HUGGINGFACE_MODEL:
+        process.env.HUGGINGFACE_MODEL || 'meta-llama/Llama-4-Scout-17B-16E-Instruct',
+      HUGGINGFACE_BASE_URL: process.env.HUGGINGFACE_BASE_URL,
       AI_REQUEST_TIMEOUT_MS: (() => {
         const n = Number(process.env.AI_REQUEST_TIMEOUT_MS);
         return Number.isFinite(n) && n > 0 ? Math.floor(n) : 30000;
@@ -67,14 +63,10 @@ export function getEnv(): z.infer<typeof envSchema> {
 
 export const env = getEnv();
 
-export function hasAnthropicKey(): boolean {
-  return Boolean(env.ANTHROPIC_API_KEY && env.ANTHROPIC_API_KEY !== 'sk-ant-...');
-}
-
-export function hasOpenAIKey(): boolean {
-  return Boolean(env.OPENAI_API_KEY && env.OPENAI_API_KEY !== 'sk-...');
+export function hasHuggingFaceKey(): boolean {
+  return Boolean(env.HUGGINGFACE_API_KEY && env.HUGGINGFACE_API_KEY !== 'hf_...');
 }
 
 export function hasAnyAIProvider(): boolean {
-  return hasAnthropicKey() || hasOpenAIKey();
+  return hasHuggingFaceKey();
 }

@@ -1,4 +1,4 @@
-import { ClaudeVisionResponse, ScoreBreakdown } from '@/types/analysis';
+import { VisionAnalysisResponse, ScoreBreakdown } from '@/types/analysis';
 import { SCORING_WEIGHTS_DEFAULT } from './constants';
 
 export interface ScoringWeights {
@@ -12,7 +12,7 @@ export const DEFAULT_WEIGHTS: ScoringWeights = {
   ...SCORING_WEIGHTS_DEFAULT,
 };
 
-// Parse stringified JSON responses from Claude
+// Parse stringified JSON responses from the AI provider
 function safeParseJSON(str: string): any {
   try {
     return typeof str === 'string' ? JSON.parse(str) : str;
@@ -59,8 +59,8 @@ export function extractScoresFromAnalysis(
   };
 }
 
-// Score a single photo based on Claude Vision response
-export function scoreFromClaudeResponse(response: ClaudeVisionResponse): ScoreBreakdown {
+// Score a single photo based on a vision model response
+export function scoreFromVisionResponse(response: VisionAnalysisResponse): ScoreBreakdown {
   const breakdown: ScoreBreakdown = {
     composition: response.composition.score,
     emotion: response.emotion.score,

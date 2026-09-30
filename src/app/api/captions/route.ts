@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { prisma } from '@/lib/db';
 import { getOrCreateDefaultUser } from '@/lib/db';
-import { generateCaptionWithClaude, isClaudeAvailable } from '@/lib/ai-claude';
-import { generateCaptionWithOpenAI, isOpenAIAvailable } from '@/lib/ai-openai';
+import { generateCaptionWithHuggingFace, isHuggingFaceAvailable } from '@/lib/ai-huggingface';
 import { handleAPIError, createSuccessResponse } from '@/lib/api-client';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
@@ -76,17 +75,12 @@ export async function POST(request: NextRequest) {
     }
 
     let captionResult: any;
-    const useClaude = isClaudeAvailable();
-    const useOpenAI = isOpenAIAvailable();
+    const hasAI = isHuggingFaceAvailable();
 
-    if (imageBase64 && (useClaude || useOpenAI)) {
+    if (imageBase64 && hasAI) {
       // Call the real AI with image bytes
       try {
-        if (useClaude) {
-          captionResult = await generateCaptionWithClaude(imageBase64, style || 'casual', mimeType);
-        } else {
-          captionResult = await generateCaptionWithOpenAI(imageBase64, style || 'casual', mimeType);
-        }
+        captionResult = await generateCaptionWithHuggingFace(imageBase64, style || 'casual', mimeType);
       } catch (aiErr) {
         console.error('Caption AI error, falling back:', aiErr);
         // Fall through to non-AI fallback below
@@ -95,7 +89,7 @@ export async function POST(request: NextRequest) {
 
     if (!captionResult) {
       // Non-AI fallback (used when file not found or no AI key)
-      if (!imageBase64 && (useClaude || useOpenAI)) {
+      if (!imageBase64 && hasAI) {
         console.warn('Caption: no image bytes available; returning stub instead of claiming AI generated it.');
       }
       captionResult = {
