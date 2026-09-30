@@ -30,6 +30,9 @@ function getClient(): OpenAI {
       apiKey: env.OPENAI_API_KEY!,
       // Support gateways/proxies via env (e.g. OPENAI_BASE_URL=https://gateway.example.com/openai/v1)
       baseURL: env.OPENAI_BASE_URL || undefined,
+      // Fail fast when the provider hangs instead of wedging the handler for minutes
+      timeout: env.AI_REQUEST_TIMEOUT_MS,
+      maxRetries: 1,
     });
   }
   return _client;

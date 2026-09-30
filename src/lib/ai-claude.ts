@@ -56,6 +56,9 @@ function getClient(): Anthropic {
       apiKey: env.ANTHROPIC_API_KEY!,
       // Support gateways/proxies via env (e.g. ANTHROPIC_BASE_URL=https://gateway.example.com/anthropic)
       baseURL: env.ANTHROPIC_BASE_URL || undefined,
+      // Fail fast when the provider hangs instead of wedging the handler for minutes
+      timeout: env.AI_REQUEST_TIMEOUT_MS,
+      maxRetries: 1,
     });
   }
   return _client;

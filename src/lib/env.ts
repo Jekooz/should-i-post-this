@@ -12,6 +12,8 @@ const envSchema = z.object({
   OPENAI_MODEL: z.string().default('gpt-4o'),
   ANTHROPIC_BASE_URL: z.string().optional(),
   OPENAI_BASE_URL: z.string().optional(),
+  /** Per-request timeout for AI providers (ms). Bounds how long a hung gateway can wedge a handler. */
+  AI_REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().default(30000),
   IMMICH_URL: z.string().optional(),
   IMMICH_API_KEY: z.string().optional(),
   NEXTAUTH_URL: z.string().optional(),
@@ -47,6 +49,10 @@ export function getEnv(): z.infer<typeof envSchema> {
       OPENAI_MODEL: process.env.OPENAI_MODEL || 'gpt-4o',
       ANTHROPIC_BASE_URL: process.env.ANTHROPIC_BASE_URL,
       OPENAI_BASE_URL: process.env.OPENAI_BASE_URL,
+      AI_REQUEST_TIMEOUT_MS: (() => {
+        const n = Number(process.env.AI_REQUEST_TIMEOUT_MS);
+        return Number.isFinite(n) && n > 0 ? Math.floor(n) : 30000;
+      })(),
       IMMICH_URL: process.env.IMMICH_URL,
       IMMICH_API_KEY: process.env.IMMICH_API_KEY,
       NEXTAUTH_URL: process.env.NEXTAUTH_URL,
