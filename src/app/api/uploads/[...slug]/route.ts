@@ -17,13 +17,6 @@ export async function GET(
 
     // Reconstruct the relative path from the slug
     const relativePath = slug.join('/');
-    // Only allow files under the uploads directory
-    if (!relativePath.startsWith('uploads/')) {
-      return NextResponse.json(
-        { success: false, error: 'Not found' },
-        { status: 404 }
-      );
-    }
 
     // Prevent path traversal
     if (relativePath.includes('..') || relativePath.startsWith('/') || relativePath.includes('\\')) {
@@ -33,7 +26,8 @@ export async function GET(
       );
     }
 
-    const filePath = join(process.cwd(), relativePath);
+    // Files live in <cwd>/uploads; the slug is the path relative to that directory
+    const filePath = join(process.cwd(), 'uploads', relativePath);
 
     // Check if file exists and is a regular file
     try {
