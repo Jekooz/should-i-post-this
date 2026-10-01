@@ -16,3 +16,5 @@ out
 netlify
 uploads
 dev-server.log
+# Playwright CLI output (may contain credentials)
+.playwright-cli/

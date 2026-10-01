@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
       where: { userId: user.id, overallScore: { gte: 9.0 } },
     });
 
-    // Recent activity: combine recent analyses and captions, limit to 10 total
+    // Recent activity: uploads + analyses + captions, limit to 10 total
     const recentAnalyses = await prisma.analysis.findMany({
       where: { photo: { userId: user.id } },
       include: { photo: true },
@@ -46,30 +46,34 @@ export async function GET(request: NextRequest) {
       take: 5,
     });
 
-    // Combine and sort by date
-    // Add a 'type' property to each item before combining to distinguish them later
+    const recentUploads = await prisma.photo.findMany({
+      where: { userId: user.id },
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+    });
+
     const recentActivity = [
-      ...recentAnalyses.map((a) => ({ ...a, type: 'analysis' as const })),
-      ...recentCaptions.map((c) => ({ ...c, type: 'caption' as const })),
+      ...recentUploads.map((p) => ({
+        type: 'upload' as const,
+        id: `upload-${p.id}`,
+        timestamp: p.createdAt,
+        photo: { id: p.id, fileName: p.fileName, fileUrl: p.fileUrl },
+      })),
+      ...recentAnalyses.map((a) => ({
+        type: 'analysis' as const,
+        id: a.id,
+        timestamp: a.createdAt,
+        photo: { id: a.photo.id, fileName: a.photo.fileName, fileUrl: a.photo.fileUrl },
+        ...(a.photo.overallScore != null && { overallScore: a.photo.overallScore }),
+      })),
+      ...recentCaptions.map((c) => ({
+        type: 'caption' as const,
+        id: c.id,
+        timestamp: c.createdAt,
+        photo: { id: c.photo.id, fileName: c.photo.fileName, fileUrl: c.photo.fileUrl },
+        caption: c.caption,
+      })),
     ]
-      .map((item) => ({
-        type: item.type,
-        id: item.id,
-        timestamp: item.createdAt,
-        photo: {
-          id: item.photo.id,
-          fileName: item.photo.fileName,
-          fileUrl: item.photo.fileUrl,
-        },
-        // For analysis, we can show the overall score if available
-        ...(item.type === 'analysis' && {
-          overallScore: item.photo.overallScore,
-        }),
-        // For caption, we can show the caption text
-        ...(item.type === 'caption' && {
-          caption: item.caption,
-        }),
-      }))
       .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
       .slice(0, 10);
 

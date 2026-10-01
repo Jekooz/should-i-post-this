@@ -7,13 +7,13 @@ export const dynamic = 'force-dynamic';
 /** Sync a specific album's assets into the local database as Photo rows. */
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    const body = await request.json().catch(() => ({}));
     const { albumId, assetIds } = body as { albumId?: string; assetIds?: string[] };
     const user = await getOrCreateDefaultUser();
 
-    if (!albumId || !assetIds || !Array.isArray(assetIds)) {
+    if (!albumId) {
       return NextResponse.json(
-        { success: false, error: 'albumId and assetIds are required' },
+        { success: false, error: 'albumId is required' },
         { status: 400 }
       );
     }
@@ -28,8 +28,8 @@ export async function POST(request: NextRequest) {
       config,
       `/api/albums/${albumId}/assets`
     );
-    const wanted = new Set(assetIds);
-    const assets = asArray(data).filter((a) => wanted.has(a.id));
+    const wanted = assetIds && Array.isArray(assetIds) ? new Set(assetIds) : null;
+    const assets = wanted ? asArray(data).filter((a) => wanted.has(a.id)) : asArray(data);
 
     let synced = 0;
     for (const asset of assets) {

@@ -134,7 +134,8 @@ class APIClient {
         throw new APIError(
           response.status,
           data.error || 'API_ERROR',
-          data.message || 'An error occurred',
+          // Surface the API's error string first — routes put useful detail in `error`.
+          data.error || data.message || 'An error occurred',
           data
         );
       }

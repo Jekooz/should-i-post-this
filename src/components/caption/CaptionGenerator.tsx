@@ -65,15 +65,14 @@ export function CaptionGenerator({ photos, selectedPhotoId }: CaptionGeneratorPr
   const caption = captions[photo.id];
 
   return (
-    <div className="space-y-6 p-6 border rounded-lg bg-card">
+    <div className="space-y-5 rounded-xl border bg-card p-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold flex items-center gap-2">
-          <Sparkles className="h-5 w-5 text-primary" />
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
           AI Caption Generator
         </h2>
       </div>
 
-      <p className="text-sm text-muted-foreground truncate">{photo.fileName}</p>
+      <p className="truncate text-sm text-muted-foreground">{photo.fileName}</p>
 
       <div className="flex gap-2 flex-wrap">
         {STYLES.map((s) => (
@@ -82,6 +81,7 @@ export function CaptionGenerator({ photos, selectedPhotoId }: CaptionGeneratorPr
             variant={style === s ? 'default' : 'outline'}
             size="sm"
             onClick={() => setStyle(s)}
+            aria-pressed={style === s}
             className="capitalize"
           >
             {s}
@@ -90,8 +90,8 @@ export function CaptionGenerator({ photos, selectedPhotoId }: CaptionGeneratorPr
       </div>
 
       <Button onClick={generate} disabled={isGenerating} className="w-full">
-        {isGenerating ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : null}
-        Generate {style} caption
+        {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Sparkles className="h-4 w-4" aria-hidden="true" />}
+        {isGenerating ? 'Generating…' : `Generate ${style} caption`}
       </Button>
 
       {caption ? (
@@ -102,7 +102,7 @@ export function CaptionGenerator({ photos, selectedPhotoId }: CaptionGeneratorPr
           onUpdateCaption={() => {}}
         />
       ) : (
-        <div className="p-8 text-center border rounded-lg text-xs text-muted-foreground bg-muted/30">
+        <div className="rounded-lg border border-dashed p-8 text-center text-xs text-muted-foreground">
           No caption generated yet
         </div>
       )}

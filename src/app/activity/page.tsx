@@ -1,15 +1,14 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/Button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/Card';
+import { useState, useEffect, useCallback } from 'react';
+import { Skeleton } from '@/components/ui/Skeleton';
 import { Alert } from '@/components/ui/Alert';
 import Link from 'next/link';
 import Image from 'next/image';
-import toast from 'react-hot-toast';
+import { Sparkles, MessageSquareText, UploadCloud, RefreshCw } from 'lucide-react';
 
 interface Activity {
-  type: 'analysis' | 'caption';
+  type: 'analysis' | 'caption' | 'upload';
   id: string;
   timestamp: string;
   photo: {
@@ -25,180 +24,131 @@ interface ActivityData {
   recentActivity: Activity[];
 }
 
+const fmtDate = new Intl.DateTimeFormat(undefined, {
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric',
+  hour: 'numeric',
+  minute: '2-digit',
+});
+
+const typeLabel: Record<Activity['type'], string> = {
+  analysis: 'Analyzed',
+  caption: 'Caption generated',
+  upload: 'Uploaded',
+};
+
 export default function ActivityPage() {
   const [data, setData] = useState<ActivityData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const response = await fetch('/api/dashboard');
-        if (!response.ok) {
-          throw new Error('Failed to fetch activity data');
-        }
-        const result = await response.json();
-        setData({ recentActivity: result.recentActivity });
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'An unknown error occurred');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch('/api/dashboard');
+      if (!response.ok) throw new Error('Failed to fetch activity data');
+      const result = await response.json();
+      setData({ recentActivity: result.recentActivity ?? [] });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An unknown error occurred');
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  if (loading) {
-    return (
-      <main className="min-h-screen bg-background text-foreground py-8 px-4 md:px-8">
-        <div className="max-w-7xl mx-auto space-y-8">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight">Activity</h1>
-              <p className="text-muted-foreground">Your analyzed photos and generated captions.</p>
-            </div>
-            <div className="flex space-x-3">
-              <Link href="/" passHref>
-                <Button variant="outline" className="shadow-sm">
-                  Home
-                </Button>
-              </Link>
-              <Link href="/dashboard" passHref>
-                <Button className="shadow-sm">
-                  Dashboard
-                </Button>
-              </Link>
-            </div>
-          </div>
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
-            <div className="h-4 w-24 bg-muted animate-pulse rounded"></div>
-          </div>
-        </div>
-      </main>
-    );
-  }
-
-  if (error) {
-    return (
-      <main className="min-h-screen bg-background text-foreground py-8 px-4 md:px-8">
-        <div className="max-w-7xl mx-auto space-y-8">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight">Activity</h1>
-              <p className="text-muted-foreground">Overview of your analyzed photos and generated captions.</p>
-            </div>
-            <div className="flex space-x-3">
-              <Link href="/" passHref>
-                <Button variant="outline" className="shadow-sm">
-                  Home
-                </Button>
-              </Link>
-              <Link href="/dashboard" passHref>
-                <Button className="shadow-sm">
-                  Dashboard
-                </Button>
-              </Link>
-            </div>
-          </div>
-
-          <Alert variant="destructive">
-            {error}
-          </Alert>
-
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-            {/* Show zeros in case of error */}
-            <Card className="shadow-sm">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Recent Activity</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">0</div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      </main>
-    );
-  }
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   return (
-    <main className="min-h-screen bg-background text-foreground py-8 px-4 md:px-8">
-      <div className="max-w-7xl mx-auto space-y-8">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
+    <main className="min-h-[calc(100vh-3.5rem)] py-10">
+      <div className="mx-auto max-w-4xl space-y-8 px-4 sm:px-6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Activity</h1>
-            <p className="text-muted-foreground">
-              Your analyzed photos and generated captions, sorted by date.
+            <h1 className="text-2xl font-semibold tracking-tight">Activity</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Every upload, analysis, and caption in one timeline.
             </p>
           </div>
-          <div className="flex space-x-3">
-            <Link href="/" passHref>
-              <Button variant="outline" className="shadow-sm">
-                Home
-              </Button>
-            </Link>
-            <Link href="/dashboard" passHref>
-              <Button className="shadow-sm">
-                Dashboard
-              </Button>
-            </Link>
-          </div>
+          <button
+            type="button"
+            onClick={fetchData}
+            disabled={loading}
+            className="inline-flex h-9 items-center gap-2 rounded-lg border border-input px-3 text-sm font-medium transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50"
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
+            Refresh
+          </button>
         </div>
 
-        <div className="space-y-6">
-          <Card className="shadow-sm hover:shadow-md transition-shadow">
-            <CardHeader>
-              <CardTitle>Activity Log</CardTitle>
-              <CardDescription>
-                Your latest analyzed photos and generated captions.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {data?.recentActivity && data.recentActivity.length > 0 ? (
-                data.recentActivity.map((activity) => (
-                  <div key={activity.id} className="flex items-center justify-between border-b pb-4 last:border-0 last:pb-0">
-                    <div className="flex items-center space-x-4">
-                      <div className="h-12 w-12 bg-muted rounded-md flex items-center justify-center overflow-hidden">
-                        <Image
-                          src={activity.photo.fileUrl || '/placeholder-photo.jpg'}
-                          alt={activity.photo.fileName || 'Photo'}
-                          width={48}
-                          height={48}
-                          unoptimized
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                      <div>
-                        <p className="font-medium">{activity.photo.fileName || 'Unnamed photo'}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {activity.type === 'analysis'
-                            ? `Score: ${activity.overallScore?.toFixed(1) ?? 'N/A'} • Analyzed`
-                            : 'Generated caption'
-                          } {new Date(activity.timestamp).toLocaleDateString()}
-                        </p>
-                      </div>
+        {loading ? (
+          <div className="space-y-3">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <Skeleton key={i} className="h-16 w-full rounded-xl" />
+            ))}
+          </div>
+        ) : error ? (
+          <Alert variant="destructive" title="Could not load activity" description={error} />
+        ) : data?.recentActivity && data.recentActivity.length > 0 ? (
+          <ol className="space-y-2">
+            {data.recentActivity.map((activity) => {
+              const Icon =
+                activity.type === 'analysis'
+                  ? Sparkles
+                  : activity.type === 'caption'
+                    ? MessageSquareText
+                    : UploadCloud;
+              return (
+                <li key={activity.id}>
+                  <Link
+                    href={`/photos/${activity.photo.id}`}
+                    className="flex items-center gap-4 rounded-xl border bg-card p-3 transition-colors hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  >
+                    <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg border bg-muted">
+                      <Image
+                        src={activity.photo.fileUrl || '/placeholder-photo.jpg'}
+                        alt=""
+                        width={48}
+                        height={48}
+                        unoptimized
+                        className="h-full w-full object-cover"
+                      />
                     </div>
-                    <Link href={`/photos/${activity.photo.id}`} passHref>
-                      <Button variant="ghost" size="sm">View</Button>
-                    </Link>
-                  </div>
-                ))
-              ) : (
-                <div className="text-center py-6 text-muted-foreground">
-                  No activity yet. Analyze your first photo to see activity here!
-                </div>
-              )}
-            </CardContent>
-            {data?.recentActivity && data.recentActivity.length > 0 && (
-              <CardFooter className="border-t pt-4 flex justify-between items-center">
-                <p className="text-sm text-muted-foreground">
-                  Showing {data.recentActivity.length} activities
-                </p>
-              </CardFooter>
-            )}
-          </Card>
-        </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">
+                        {activity.photo.fileName || 'Unnamed photo'}
+                      </p>
+                      <p className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <Icon className="h-3 w-3 shrink-0" aria-hidden="true" />
+                        {typeLabel[activity.type]}
+                        {activity.type === 'analysis' && activity.overallScore != null && (
+                          <span className="tabular-nums">· {activity.overallScore.toFixed(1)}</span>
+                        )}
+                        <span aria-hidden="true">·</span>
+                        <span className="tabular-nums">{fmtDate.format(new Date(activity.timestamp))}</span>
+                      </p>
+                    </div>
+                  </Link>
+                </li>
+              );
+            })}
+          </ol>
+        ) : (
+          <div className="rounded-xl border border-dashed p-16 text-center">
+            <p className="text-sm font-medium">No activity yet</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Upload and analyze your first photo to see it here.
+            </p>
+            <Link
+              href="/"
+              className="mt-4 inline-flex h-9 items-center rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            >
+              Analyze a photo
+            </Link>
+          </div>
+        )}
       </div>
     </main>
   );
